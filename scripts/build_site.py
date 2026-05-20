@@ -21,7 +21,17 @@ except ImportError as exc:  # pragma: no cover - friendly hint
 
 OUTPUTS = Path("outputs")
 SITE = Path("site")
-ASSETS = ("top_24_rankings.csv", "full_rankings.csv", "model_report.md", "top_24.png")
+ASSETS = (
+    "top_24_rankings.csv",
+    "full_rankings.csv",
+    "model_report.md",
+    "top_24.png",
+    # Tournament simulator outputs (present when `worldcup-ranker simulate` ran).
+    "simulation_report.md",
+    "deterministic_bracket.md",
+    "monte_carlo_probabilities.csv",
+    "monte_carlo_medals.csv",
+)
 
 
 PAGE = """<!DOCTYPE html>
@@ -79,9 +89,11 @@ PAGE = """<!DOCTYPE html>
   <a href="top_24_rankings.csv">top_24_rankings.csv</a>
   <a href="full_rankings.csv">full_rankings.csv</a>
   <a href="model_report.md">model_report.md</a>
+  {simulation_links}
 </div>
 {chart}
 {body}
+{simulation_section}
 </body>
 </html>
 """
@@ -116,8 +128,30 @@ def main() -> int:
     )
     built_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    sim_links = ""
+    sim_section = ""
+    sim_report = SITE / "simulation_report.md"
+    if sim_report.exists():
+        sim_links = (
+            '<a href="simulation_report.md">simulation_report.md</a> '
+            '<a href="deterministic_bracket.md">deterministic_bracket.md</a> '
+            '<a href="monte_carlo_probabilities.csv">monte_carlo_probabilities.csv</a> '
+            '<a href="monte_carlo_medals.csv">monte_carlo_medals.csv</a>'
+        )
+        sim_md = sim_report.read_text(encoding="utf-8")
+        sim_html = markdown.markdown(
+            sim_md, extensions=["tables", "fenced_code"]
+        )
+        sim_section = f'<hr>\n<section id="simulation">\n{sim_html}\n</section>'
+
     (SITE / "index.html").write_text(
-        PAGE.format(body=body_html, chart=chart_html, built_at=built_at),
+        PAGE.format(
+            body=body_html,
+            chart=chart_html,
+            built_at=built_at,
+            simulation_links=sim_links,
+            simulation_section=sim_section,
+        ),
         encoding="utf-8",
     )
     print(f"Built {SITE / 'index.html'}")

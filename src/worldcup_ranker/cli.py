@@ -73,6 +73,33 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Re-render the model report from the most recent rankings.",
     )
 
+    sim = sub.add_parser(
+        "simulate",
+        help="Simulate the 2026 World Cup from group stage to final.",
+    )
+    sim.add_argument(
+        "--rankings-csv",
+        default="outputs/full_rankings.csv",
+        help="Path to a rankings CSV with 'team' and 'final_score' columns.",
+    )
+    sim.add_argument(
+        "--groups-csv",
+        default="config/wc2026_groups.csv",
+        help="Path to the group draw CSV (columns 'group','team').",
+    )
+    sim.add_argument(
+        "--iterations",
+        type=int,
+        default=10_000,
+        help="Monte Carlo iterations (deterministic walk is always also produced).",
+    )
+    sim.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible MC runs.",
+    )
+
     sb = sub.add_parser(
         "statsbomb",
         help="Build xG / squad-strength enrichment CSVs from a local clone "
@@ -175,6 +202,24 @@ def cmd_rank(args, config) -> int:
     return 0
 
 
+def cmd_simulate(args, config) -> int:
+    from . import simulate as sim_mod
+
+    summary = sim_mod.run(
+        rankings_csv=args.rankings_csv,
+        groups_csv=args.groups_csv,
+        iterations=args.iterations,
+        seed=args.seed,
+        team_aliases=config.data.team_aliases,
+    )
+    paths = sim_mod.write_outputs(summary, config.output.directory)
+    print(f"Deterministic bracket: {paths['determ_bracket']}")
+    print(f"MC probabilities:      {paths['probabilities']}")
+    print(f"MC medals:             {paths['medals']}")
+    print(f"Simulation report:     {paths['report']}")
+    return 0
+
+
 def cmd_report(args, config) -> int:
     # Re-run the pipeline (cheap) and re-render the report.
     result = run_ranking(config)
@@ -239,6 +284,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return cmd_report(args, config)
     if args.command == "statsbomb":
         return cmd_statsbomb(args, config)
+    if args.command == "simulate":
+        return cmd_simulate(args, config)
 
     parser.error(f"Unknown command: {args.command}")
     return 2
