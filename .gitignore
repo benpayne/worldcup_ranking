@@ -23,6 +23,9 @@ data/processed/*
 outputs/*
 !outputs/.gitkeep
 
+# Built static site
+site/
+
 # IDE
 .idea/
 .vscode/

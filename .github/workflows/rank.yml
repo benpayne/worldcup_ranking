@@ -1,0 +1,79 @@
+name: Rank and publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "config/**"
+      - "scripts/**"
+      - "pyproject.toml"
+      - ".github/workflows/rank.yml"
+  schedule:
+    # Mondays 06:00 UTC. martj42's results dataset updates roughly weekly.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Tournament start date (YYYY-MM-DD). Leave blank to use config/default.yaml."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package
+        run: pip install -e ".[site]"
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Fetch latest match results
+        run: worldcup-ranker fetch-data
+
+      - name: Run ranking
+        env:
+          START_DATE: ${{ github.event.inputs.start_date }}
+        run: |
+          if [ -n "$START_DATE" ]; then
+            echo "Using start date override: $START_DATE"
+            worldcup-ranker rank --start-date "$START_DATE"
+          else
+            worldcup-ranker rank
+          fi
+
+      - name: Build static site
+        run: python scripts/build_site.py
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

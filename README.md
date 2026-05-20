@@ -200,6 +200,51 @@ Notable invariants under test:
 - Capping caps blow-out goal differences.
 - When the squad CSV is missing the weights are renormalized.
 
+## Continuous publication (GitHub Actions + Pages)
+
+`.github/workflows/rank.yml` runs the ranking pipeline and publishes the
+result to **GitHub Pages** at
+`https://<owner>.github.io/<repo>/`.
+
+Triggers:
+
+- **Weekly cron** - Mondays at 06:00 UTC (martj42's dataset refreshes
+  roughly weekly).
+- **Push to `main`** when source, config, scripts, or the workflow file
+  itself change.
+- **Manual** via the Actions tab (`workflow_dispatch`), with an optional
+  `start_date` input so you can re-rank for a different cutoff.
+
+The workflow installs the package with the `[site]` extra, runs the test
+suite as a guard, calls `worldcup-ranker fetch-data` and
+`worldcup-ranker rank`, then runs `scripts/build_site.py` to assemble a
+self-contained `site/` directory (HTML report + embedded chart +
+downloadable CSVs) which is published with `actions/deploy-pages`.
+
+### One-time setup
+
+In the repo settings:
+
+1. **Settings -> Pages -> Build and deployment -> Source**: select
+   **GitHub Actions**.
+2. **Settings -> Actions -> General -> Workflow permissions**: leave at
+   the default ("Read repository contents"); the workflow declares the
+   extra `pages: write` and `id-token: write` permissions it needs.
+
+After the first successful run the deployed URL is printed in the
+workflow summary and remains stable for subsequent runs.
+
+### Local preview
+
+```bash
+pip install -e ".[site]"
+worldcup-ranker fetch-data
+worldcup-ranker rank
+python scripts/build_site.py
+python -m http.server --directory site 8000
+# open http://localhost:8000
+```
+
 ## Caveats
 
 - FIFA's official ranking is canonical but not designed primarily as a
