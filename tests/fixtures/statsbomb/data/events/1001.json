@@ -1,0 +1,32 @@
+[
+  {
+    "id": "pass-1",
+    "team": {"name": "Spain"},
+    "player": {"name": "F. Ruiz"},
+    "pass": {"recipient": {"name": "A. Morata"}}
+  },
+  {
+    "id": "shot-1",
+    "team": {"name": "Spain"},
+    "player": {"name": "A. Morata"},
+    "shot": {"statsbomb_xg": 0.45, "key_pass_id": "pass-1"}
+  },
+  {
+    "id": "shot-2",
+    "team": {"name": "Spain"},
+    "player": {"name": "L. Yamal"},
+    "shot": {"statsbomb_xg": 0.12}
+  },
+  {
+    "id": "shot-3",
+    "team": {"name": "Croatia"},
+    "player": {"name": "L. Modrić"},
+    "shot": {"statsbomb_xg": 0.08}
+  },
+  {
+    "id": "shot-4",
+    "team": {"name": "Croatia"},
+    "player": {"name": "I. Perišić"},
+    "shot": {"statsbomb_xg": 0.22}
+  }
+]

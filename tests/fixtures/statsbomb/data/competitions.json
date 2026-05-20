@@ -1,0 +1,20 @@
+[
+  {
+    "competition_id": 55,
+    "season_id": 282,
+    "country_name": "Europe",
+    "competition_name": "UEFA Euro",
+    "competition_gender": "male",
+    "competition_international": true,
+    "season_name": "2024"
+  },
+  {
+    "competition_id": 9,
+    "season_id": 27,
+    "country_name": "Germany",
+    "competition_name": "Bundesliga",
+    "competition_gender": "male",
+    "competition_international": false,
+    "season_name": "2015/2016"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "shot-a",
+    "team": {"name": "Spain"},
+    "player": {"name": "A. Morata"},
+    "shot": {"statsbomb_xg": 0.30}
+  },
+  {
+    "id": "shot-b",
+    "team": {"name": "Italy"},
+    "player": {"name": "G. Scamacca"},
+    "shot": {"statsbomb_xg": 0.55}
+  },
+  {
+    "id": "shot-c",
+    "team": {"name": "Italy"},
+    "player": {"name": "F. Chiesa"},
+    "shot": {"statsbomb_xg": 0.18}
+  }
+]
