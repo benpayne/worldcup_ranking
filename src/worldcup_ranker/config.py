@@ -12,6 +12,7 @@ class TournamentConfig(BaseModel):
     start_date: str
     form_window_days: int = Field(730, ge=30)
     min_matches: int = Field(5, ge=1)
+    drop_below_min_matches: bool = True
 
 
 class Weights(BaseModel):
