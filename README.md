@@ -159,6 +159,22 @@ produced by `worldcup-ranker statsbomb build`), each covered match
 uses `xG - xGA` (still capped) in place of the goals proxy. See the
 "StatsBomb xG and squad enrichment" section below for details.
 
+### Missing-data handling (per-team renormalization)
+
+Components can be globally missing (e.g. no squad CSV supplied at
+all) or per-team missing (e.g. squad CSV supplied, but a particular
+team isn't in StatsBomb's covered tournaments and so has no squad
+score). Both cases are handled the same way: **drop the missing
+component and rescale the remaining weights to sum to 1 for that
+team**. So a team without squad data is scored on
+`elo + recent_form + goal_performance` renormalized to total 1.0,
+rather than being penalised as if it had the worst possible squad.
+
+This matters most when StatsBomb coverage is uneven: without
+per-team renorm, teams from AFC / CAF / CONCACAF outside the covered
+WC / Euro / Copa events would lose `weights.squad_strength * 100` of
+their score for reasons unrelated to playing ability.
+
 ### Small-sample handling
 
 By default, teams with fewer than `tournament.min_matches` matches in

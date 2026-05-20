@@ -202,10 +202,37 @@ def run_ranking(config: AppConfig) -> RankingResult:
         "goal_performance": "goal_performance_score",
         "squad_strength": "squad_strength_score",
     }
-    df["final_score"] = 0.0
-    for component, weight in eff.items():
-        col = score_components[component]
-        df["final_score"] = df["final_score"] + df[col].fillna(0.0) * weight
+    # Per-team renormalization: if a team is missing a component (e.g. no
+    # StatsBomb squad data for that nation), drop that component for that
+    # team only and rescale its remaining weights to sum to 1. Avoids
+    # conflating "missing data" with "weak in that dimension".
+    cols = [score_components[c] for c in eff.keys()]
+    weights_arr = np.array([eff[c] for c in eff.keys()], dtype=float)
+    score_matrix = df[cols].to_numpy(dtype=float)
+    available = ~np.isnan(score_matrix)
+    score_filled = np.where(available, score_matrix, 0.0)
+    weighted_sum = (score_filled * weights_arr).sum(axis=1)
+    weight_in_use = (available.astype(float) * weights_arr).sum(axis=1)
+    df["final_score"] = np.where(
+        weight_in_use > 0, weighted_sum / weight_in_use, 0.0
+    )
+
+    # Record which teams had a per-team renorm applied (their component
+    # was N/A so its weight was redistributed).
+    partial_coverage_count = int((available.sum(axis=1) < len(cols)).sum())
+    if partial_coverage_count:
+        missing_per_component = {
+            c: int((~available[:, i]).sum())
+            for i, c in enumerate(eff.keys())
+            if (~available[:, i]).any()
+        }
+        bits = ", ".join(f"{c}: {n}" for c, n in missing_per_component.items())
+        notes.append(
+            f"Per-team weight renormalization applied to {partial_coverage_count} "
+            f"team(s) missing one or more components ({bits}). Their remaining "
+            "weights were rescaled to sum to 1.0 instead of treating the missing "
+            "score as zero."
+        )
 
     # 8. Decorate with metadata.
     df = df.sort_values("final_score", ascending=False).reset_index(drop=True)

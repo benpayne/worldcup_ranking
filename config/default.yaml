@@ -15,9 +15,9 @@ tournament:
 
 weights:
   elo: 0.50
-  recent_form: 0.20
+  recent_form: 0.15
   goal_performance: 0.15
-  squad_strength: 0.15
+  squad_strength: 0.20
 
 elo:
   initial_rating: 1500

@@ -119,6 +119,82 @@ def test_qualified_teams_filter(tmp_path, tiny_matches):
     assert set(result.rankings["team"]) == {"Brazil", "Argentina"}
 
 
+def test_per_team_renormalization_when_squad_missing_for_some_teams(tmp_path, tiny_matches):
+    """A team missing one component should be scored on the renormalized
+    remaining weights, not penalized as if the missing score were 0."""
+    results = tmp_path / "results.csv"
+    squad = tmp_path / "squad.csv"
+    _write_csv(results, tiny_matches)
+    # Squad data for only two of four teams.
+    pd.DataFrame(
+        {"team": ["Brazil", "Argentina"], "score": [900, 850]}
+    ).to_csv(squad, index=False)
+
+    config = _make_config(tmp_path, results, squad_csv=squad)
+    config.tournament.drop_below_min_matches = False
+    result = run_ranking(config)
+
+    by_team = result.rankings.set_index("team")
+    # Brazil and Argentina were supplied; Uruguay and Chile were not.
+    assert not pd.isna(by_team.loc["Brazil", "squad_strength_score"])
+    assert pd.isna(by_team.loc["Uruguay", "squad_strength_score"])
+    assert pd.isna(by_team.loc["Chile", "squad_strength_score"])
+
+    # Reconstruct each team's expected final_score by per-team renorm.
+    weights = result.weights_effective
+    for team in by_team.index:
+        row = by_team.loc[team]
+        weighted = 0.0
+        active = 0.0
+        for comp, col in [
+            ("elo", "elo_score"),
+            ("recent_form", "recent_form_score"),
+            ("goal_performance", "goal_performance_score"),
+            ("squad_strength", "squad_strength_score"),
+        ]:
+            if comp not in weights:
+                continue
+            val = row[col]
+            if pd.isna(val):
+                continue
+            weighted += weights[comp] * val
+            active += weights[comp]
+        expected = weighted / active if active > 0 else 0.0
+        assert row["final_score"] == pytest.approx(expected, abs=1e-9), team
+
+    # Notes should mention the renorm.
+    assert any("Per-team weight renormalization" in n for n in result.notes)
+
+
+def test_per_team_renormalization_advantages_missing_data_team_over_zero_impute(
+    tmp_path, tiny_matches
+):
+    """Sanity-check direction: a team with missing squad data scores higher
+    under per-team renorm than it would under 0-impute, all else equal."""
+    results = tmp_path / "results.csv"
+    squad = tmp_path / "squad.csv"
+    _write_csv(results, tiny_matches)
+    # Argentina has a strong squad; Brazil/Uruguay/Chile do not.
+    pd.DataFrame({"team": ["Argentina"], "score": [1000]}).to_csv(squad, index=False)
+
+    config = _make_config(tmp_path, results, squad_csv=squad)
+    config.tournament.drop_below_min_matches = False
+    result = run_ranking(config)
+
+    by_team = result.rankings.set_index("team")
+    weights = result.weights_effective
+
+    # Reconstruct the alternative 0-impute final_score for a missing-squad team.
+    brazil = by_team.loc["Brazil"]
+    zero_impute = (
+        weights["elo"] * brazil["elo_score"]
+        + weights["recent_form"] * brazil["recent_form_score"]
+        + weights["goal_performance"] * brazil["goal_performance_score"]
+        + weights["squad_strength"] * 0.0
+    )
+    assert brazil["final_score"] > zero_impute
+
+
 def test_squad_strength_included_when_csv_supplied(tmp_path, tiny_matches):
     results = tmp_path / "results.csv"
     squad = tmp_path / "squad.csv"
