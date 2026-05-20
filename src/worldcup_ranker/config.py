@@ -50,6 +50,10 @@ class GoalPerformanceConfig(BaseModel):
     goal_diff_cap: int = 5
     attack_weight: float = 0.5
     defense_weight: float = 0.5
+    # Optional path to a precomputed xG CSV (see worldcup-ranker statsbomb build).
+    # When present, per-match xG/xGA replace the capped goals proxy for matches
+    # in the CSV. Matches not in the CSV fall back to the goals proxy.
+    xg_csv: Optional[str] = None
 
 
 class SquadStrengthConfig(BaseModel):

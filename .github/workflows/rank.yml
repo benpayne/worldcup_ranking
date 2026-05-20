@@ -49,16 +49,47 @@ jobs:
       - name: Fetch latest match results
         run: worldcup-ranker fetch-data
 
+      - name: Cache StatsBomb open-data clone
+        id: sbod-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/statsbomb-open-data
+          # Bust the cache weekly so we pick up new tournaments.
+          key: statsbomb-open-data-${{ github.run_id }}
+          restore-keys: |
+            statsbomb-open-data-
+
+      - name: Refresh StatsBomb open-data clone
+        run: |
+          if [ -d /tmp/statsbomb-open-data/.git ]; then
+            git -C /tmp/statsbomb-open-data pull --ff-only --depth 1
+          else
+            git clone --depth 1 https://github.com/statsbomb/open-data /tmp/statsbomb-open-data
+          fi
+
+      - name: Build StatsBomb enrichment CSVs
+        env:
+          START_DATE: ${{ github.event.inputs.start_date }}
+        run: |
+          # Wider window than form_window_days so the squad builder picks up
+          # WC 2022 (otherwise only Euro 2024 + Copa 2024 are in range and
+          # most AFC / CAF squads contribute 0).
+          ARGS="--open-data-path /tmp/statsbomb-open-data --lookback-days 1500"
+          if [ -n "$START_DATE" ]; then
+            ARGS="$ARGS --start-date $START_DATE"
+          fi
+          worldcup-ranker statsbomb build $ARGS
+
       - name: Run ranking
         env:
           START_DATE: ${{ github.event.inputs.start_date }}
         run: |
+          ARGS="--xg-csv data/processed/statsbomb_xg.csv --squad-csv data/processed/statsbomb_squad.csv"
           if [ -n "$START_DATE" ]; then
             echo "Using start date override: $START_DATE"
-            worldcup-ranker rank --start-date "$START_DATE"
-          else
-            worldcup-ranker rank
+            ARGS="$ARGS --start-date $START_DATE"
           fi
+          worldcup-ranker rank $ARGS
 
       - name: Build static site
         run: python scripts/build_site.py

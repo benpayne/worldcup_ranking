@@ -57,6 +57,10 @@ goal_performance:
   # Weight goals scored vs. goals conceded in the index (must sum to 1).
   attack_weight: 0.5
   defense_weight: 0.5
+  # Optional StatsBomb xG enrichment. Build with:
+  #   worldcup-ranker statsbomb build --open-data-path <clone>
+  # Then point this at the produced CSV (default location below).
+  xg_csv: null  # e.g. "data/processed/statsbomb_xg.csv"
 
 squad_strength:
   # If no CSV is supplied, the component is skipped and weights are renormalized.

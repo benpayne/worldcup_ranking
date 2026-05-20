@@ -106,9 +106,10 @@ worldcup-ranker report
 |-----------------|--------------------------------------------------------|---------|
 | Match results   | [martj42/international_results](https://github.com/martj42/international_results) | CC0 1.0 |
 | Elo             | Computed in-process from the match results above       | n/a     |
-| Recent form     | Same as above                                          | n/a     |
-| Goal proxy      | Same as above                                          | n/a     |
-| Squad strength  | User-supplied CSV (no scraping)                        | varies  |
+| Recent form     | Same as above (opponent-adjusted via Elo)              | n/a     |
+| Goal proxy      | Same as above; optionally enriched with StatsBomb xG   | n/a     |
+| xG enrichment   | [statsbomb/open-data](https://github.com/statsbomb/open-data) (optional) | StatsBomb OD User Agreement (non-commercial, attribution) |
+| Squad strength  | User-supplied CSV, or built from StatsBomb open-data   | varies  |
 
 The Kaggle mirror of the same dataset is at
 <https://www.kaggle.com/datasets/martj42/international-football-results-from-1872-to-2017>
@@ -153,9 +154,10 @@ goal_perf_raw = attack_weight  * mean(min(goals_for,  cap))
               - defense_weight * mean(min(goals_against, cap))
 ```
 
-The module is pluggable: when reliable national-team xG becomes
-available from a free source, swap in a new feature function in
-`features.py`.
+**Optional xG enrichment:** when `--xg-csv` is supplied (typically
+produced by `worldcup-ranker statsbomb build`), each covered match
+uses `xG - xGA` (still capped) in place of the goals proxy. See the
+"StatsBomb xG and squad enrichment" section below for details.
 
 ### Small-sample handling
 
@@ -165,6 +167,52 @@ single 4-0 friendly from floating a team to the top of the table by
 anchoring the min-max rescale (the bug that put Basque Country on the
 first published run). To keep them in the table with a `"<N matches"`
 note instead, set `tournament.drop_below_min_matches: false`.
+
+### StatsBomb xG and squad enrichment (optional)
+
+`worldcup-ranker statsbomb build` reads a local clone of
+[`statsbomb/open-data`](https://github.com/statsbomb/open-data) — free
+for non-commercial use with attribution under the StatsBomb Open Data
+User Agreement — and emits two CSVs:
+
+- `data/processed/statsbomb_xg.csv` — per-match xG (`home_xg`,
+  `away_xg`) for every men's national-team tournament covered by the
+  open dataset (recent World Cups, Euros, Copa América).
+- `data/processed/statsbomb_squad.csv` — per-team squad-strength
+  scores, computed by summing each player's xG (shots taken) + xA
+  proxy (shots they key-passed) across matches in the look-back
+  window, then taking the top 23 contributors per nation.
+
+Hook both into the ranking:
+
+```bash
+git clone --depth 1 https://github.com/statsbomb/open-data ~/sbod
+# 1500-day lookback covers WC 2022 + Euro 2020/24 + Copa 2024. The
+# narrower default form-window-days (730d) would miss WC 2022 and leave
+# most non-UEFA / non-CONMEBOL teams with zero squad score.
+worldcup-ranker statsbomb build --open-data-path ~/sbod --lookback-days 1500
+worldcup-ranker rank \
+    --xg-csv   data/processed/statsbomb_xg.csv \
+    --squad-csv data/processed/statsbomb_squad.csv
+```
+
+For matches covered by StatsBomb, the goal-performance feature uses
+`xG - xGA` (capped) in place of the goals-based proxy. Matches
+outside coverage fall through to the existing capped-goals path, so
+no team is penalised for tournaments StatsBomb hasn't released.
+
+We deliberately do **not** use the `statsbombpy` PyPI package — it is
+designed for the commercial API and has no first-class mode for
+reading a local clone, while the open-data JSON schema is small
+enough that the in-tree reader is ~100 lines.
+
+**Coverage caveat:** the StatsBomb open data only covers a handful of
+men's national-team tournaments (WC 2018, WC 2022, Euro 2020, Euro
+2024, Copa América 2024). Teams that haven't featured in those events
+contribute 0 to the squad score, so the squad component will
+under-weight strong sides from confederations that aren't in the
+covered tournaments. The xG path degrades more gracefully because of
+the goals-based fallback.
 
 ### Squad strength (10%, optional)
 

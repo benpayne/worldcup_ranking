@@ -140,6 +140,112 @@ def test_goal_performance_caps_blowouts():
     assert a["goal_perf_raw"] == pytest.approx(0.5 * 3.0 - 0.5 * 0.0)
 
 
+def test_goal_performance_xg_overrides_goals_when_provided():
+    # One 5-0 blow-out where xG actually paints a closer game.
+    matches = pd.DataFrame(
+        [
+            {
+                "date": pd.Timestamp("2026-01-15"),
+                "home_team": "A",
+                "away_team": "B",
+                "home_score": 5,
+                "away_score": 0,
+                "tournament": "Friendly",
+                "city": "x",
+                "country": "x",
+                "neutral": True,
+            }
+        ]
+    )
+    xg = pd.DataFrame(
+        [
+            {
+                "date": pd.Timestamp("2026-01-15"),
+                "home_team": "A",
+                "away_team": "B",
+                "home_xg": 1.6,
+                "away_xg": 1.2,
+            }
+        ]
+    )
+    out_no_xg = compute_goal_performance(
+        matches,
+        cutoff=pd.Timestamp("2026-06-11"),
+        window_days=365,
+        config=GoalPerformanceConfig(goal_diff_cap=5, attack_weight=0.5, defense_weight=0.5),
+    )
+    out_xg = compute_goal_performance(
+        matches,
+        cutoff=pd.Timestamp("2026-06-11"),
+        window_days=365,
+        config=GoalPerformanceConfig(goal_diff_cap=5, attack_weight=0.5, defense_weight=0.5),
+        xg_df=xg,
+    )
+    a_no = out_no_xg.set_index("team").loc["A"]
+    a_xg = out_xg.set_index("team").loc["A"]
+    # Without xG: capped goals -> 5 for, 0 against -> 0.5*5 - 0.5*0 = 2.5
+    assert a_no["goal_perf_raw"] == pytest.approx(2.5)
+    assert a_no["xg_matches_used"] == 0
+    # With xG: 1.6 for, 1.2 against -> 0.5*1.6 - 0.5*1.2 = 0.2
+    assert a_xg["goal_perf_raw"] == pytest.approx(0.2)
+    assert a_xg["xg_matches_used"] == 1
+
+
+def test_goal_performance_xg_falls_back_to_goals_for_uncovered_matches():
+    matches = pd.DataFrame(
+        [
+            {
+                "date": pd.Timestamp("2026-01-15"),
+                "home_team": "A",
+                "away_team": "B",
+                "home_score": 3,
+                "away_score": 1,
+                "tournament": "Friendly",
+                "city": "x",
+                "country": "x",
+                "neutral": True,
+            },
+            {
+                "date": pd.Timestamp("2026-02-15"),
+                "home_team": "A",
+                "away_team": "B",
+                "home_score": 0,
+                "away_score": 2,
+                "tournament": "Friendly",
+                "city": "x",
+                "country": "x",
+                "neutral": True,
+            },
+        ]
+    )
+    # Only the first match has xG.
+    xg = pd.DataFrame(
+        [
+            {
+                "date": pd.Timestamp("2026-01-15"),
+                "home_team": "A",
+                "away_team": "B",
+                "home_xg": 2.0,
+                "away_xg": 1.5,
+            }
+        ]
+    )
+    out = compute_goal_performance(
+        matches,
+        cutoff=pd.Timestamp("2026-06-11"),
+        window_days=365,
+        config=GoalPerformanceConfig(goal_diff_cap=5, attack_weight=0.5, defense_weight=0.5),
+        xg_df=xg,
+    )
+    a = out.set_index("team").loc["A"]
+    # match 1 (xG): for=2.0, against=1.5
+    # match 2 (fallback to goals capped): for=0, against=2
+    # Means: for=(2.0+0)/2=1.0, against=(1.5+2)/2=1.75
+    assert a["goals_for_avg"] == pytest.approx(1.0)
+    assert a["goals_against_avg"] == pytest.approx(1.75)
+    assert a["xg_matches_used"] == 1
+
+
 def test_compute_squad_strength_returns_none_when_missing():
     out = compute_squad_strength(None, ["A", "B"], SquadStrengthConfig())
     assert out is None

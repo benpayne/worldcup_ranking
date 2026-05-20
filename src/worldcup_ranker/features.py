@@ -108,55 +108,104 @@ def compute_goal_performance(
     cutoff: pd.Timestamp,
     window_days: int,
     config: GoalPerformanceConfig,
+    xg_df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """Compute an opponent-naïve goal-based performance index.
 
+    When ``xg_df`` is provided (columns: ``date, home_team, away_team,
+    home_xg, away_xg``), per-match xG/xGA replace the capped goals proxy
+    for matches present in the CSV. Matches not in the CSV fall through
+    to capped goals. Mixing the two scales is intentional: xG and goals
+    are on similar scales (typical match ~2 each), so an averaging blend
+    is a reasonable enrichment.
+
     For each team:
-        attack  = mean(goals_for_capped)
-        defense = mean(goals_against_capped)  (inverted later)
-        gd      = mean(clip(goals_for - goals_against, -cap, +cap))
+        attack  = mean(effective_for)
+        defense = mean(effective_against)  (inverted later)
+        gd      = mean(clip(effective_for - effective_against, -cap, +cap))
 
     The raw index is ``attack_weight * attack - defense_weight * defense``,
-    which downstream is rescaled to 0-100. ``gd`` is reported for
-    transparency.
+    which downstream is rescaled to 0-100.
     """
     window_start = cutoff - pd.Timedelta(days=window_days)
     window = matches.loc[
         (matches["date"] >= window_start) & (matches["date"] < cutoff)
     ].copy()
 
+    empty_cols = [
+        "team",
+        "goal_perf_raw",
+        "goals_for_avg",
+        "goals_against_avg",
+        "goal_diff_avg",
+        "xg_matches_used",
+    ]
     if window.empty:
-        return pd.DataFrame(
-            columns=[
-                "team",
-                "goal_perf_raw",
-                "goals_for_avg",
-                "goals_against_avg",
-                "goal_diff_avg",
-            ]
-        )
+        return pd.DataFrame(columns=empty_cols)
 
     view = _per_team_match_view(window)
     cap = max(config.goal_diff_cap, 0)
-    view["goals_for_capped"] = view["goals_for"].clip(upper=cap) if cap > 0 else view["goals_for"]
+    view["goals_for_capped"] = (
+        view["goals_for"].clip(upper=cap) if cap > 0 else view["goals_for"]
+    )
     view["goals_against_capped"] = (
         view["goals_against"].clip(upper=cap) if cap > 0 else view["goals_against"]
     )
-    view["gd_capped"] = (view["goals_for"] - view["goals_against"]).clip(
+
+    # Optionally merge in xG.
+    if xg_df is not None and not xg_df.empty:
+        xg_long = _xg_long_view(xg_df)
+        view = view.merge(
+            xg_long, on=["date", "team", "opponent"], how="left"
+        )
+    else:
+        view["xg_for"] = np.nan
+        view["xg_against"] = np.nan
+
+    view["effective_for"] = view["xg_for"].fillna(view["goals_for_capped"])
+    view["effective_against"] = view["xg_against"].fillna(view["goals_against_capped"])
+    view["effective_gd"] = (view["effective_for"] - view["effective_against"]).clip(
         lower=-cap if cap > 0 else None,
         upper=cap if cap > 0 else None,
     )
 
     agg = view.groupby("team").agg(
-        goals_for_avg=("goals_for_capped", "mean"),
-        goals_against_avg=("goals_against_capped", "mean"),
-        goal_diff_avg=("gd_capped", "mean"),
+        goals_for_avg=("effective_for", "mean"),
+        goals_against_avg=("effective_against", "mean"),
+        goal_diff_avg=("effective_gd", "mean"),
+        xg_matches_used=("xg_for", lambda s: int(s.notna().sum())),
     )
     agg["goal_perf_raw"] = (
         config.attack_weight * agg["goals_for_avg"]
         - config.defense_weight * agg["goals_against_avg"]
     )
     return agg.reset_index()
+
+
+def _xg_long_view(xg_df: pd.DataFrame) -> pd.DataFrame:
+    """Explode an xG match-frame into a team-perspective view.
+
+    Columns: date, team, opponent, xg_for, xg_against.
+    """
+    home = pd.DataFrame(
+        {
+            "date": xg_df["date"],
+            "team": xg_df["home_team"],
+            "opponent": xg_df["away_team"],
+            "xg_for": xg_df["home_xg"].astype(float),
+            "xg_against": xg_df["away_xg"].astype(float),
+        }
+    )
+    away = pd.DataFrame(
+        {
+            "date": xg_df["date"],
+            "team": xg_df["away_team"],
+            "opponent": xg_df["home_team"],
+            "xg_for": xg_df["away_xg"].astype(float),
+            "xg_against": xg_df["home_xg"].astype(float),
+        }
+    )
+    return pd.concat([home, away], ignore_index=True)
 
 
 def compute_squad_strength(

@@ -106,11 +106,22 @@ def run_ranking(config: AppConfig) -> RankingResult:
         config=config.recent_form,
         elo_state=elo_state,
     )
+    xg_df = None
+    if config.goal_performance.xg_csv:
+        from .statsbomb import load_xg_csv  # local import to keep import graph light
+
+        xg_df = load_xg_csv(config.goal_performance.xg_csv, team_aliases=aliases)
+        LOGGER.info(
+            "Loaded %d match xG rows from %s",
+            len(xg_df),
+            config.goal_performance.xg_csv,
+        )
     goals_df = compute_goal_performance(
         matches,
         cutoff=cutoff,
         window_days=config.tournament.form_window_days,
         config=config.goal_performance,
+        xg_df=xg_df,
     )
 
     # 4. Squad strength (optional).
@@ -222,6 +233,35 @@ def run_ranking(config: AppConfig) -> RankingResult:
     ]
     rankings = df[columns].copy()
 
+    sources: list[DataSourceInfo] = [PRIMARY_SOURCE]
+    if xg_df is not None:
+        from .statsbomb import OPEN_DATA_LICENCE, OPEN_DATA_URL
+
+        sources.append(
+            DataSourceInfo(
+                name="statsbomb/open-data",
+                url=OPEN_DATA_URL,
+                licence=OPEN_DATA_LICENCE,
+                notes="xG enrichment for matches in covered men's national-team tournaments.",
+            )
+        )
+        covered = int(df.get("xg_matches_used", pd.Series(dtype=int)).fillna(0).sum())
+        notes.append(
+            f"xG enrichment active: {covered} per-team match-views used StatsBomb "
+            "xG. Matches outside the StatsBomb open-data coverage fell back to "
+            "the capped goals proxy."
+        )
+
+    if config.squad_strength.csv_path:
+        sources.append(
+            DataSourceInfo(
+                name="squad_strength.csv",
+                url=config.squad_strength.csv_path,
+                licence="user-supplied",
+                notes="Squad-strength scores supplied by the user.",
+            )
+        )
+
     return RankingResult(
         rankings=rankings,
         weights_effective=eff,
@@ -230,7 +270,7 @@ def run_ranking(config: AppConfig) -> RankingResult:
         matches_in_window=len(matches),
         teams_ranked=len(rankings),
         notes=notes,
-        sources=[PRIMARY_SOURCE],
+        sources=sources,
         elo_state=elo_state,
     )
 
