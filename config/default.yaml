@@ -1,0 +1,81 @@
+# Default configuration for worldcup-ranker.
+# All weights and parameters can be overridden via --config or by editing this file.
+
+tournament:
+  # Default to the 2026 FIFA World Cup start date.
+  start_date: "2026-06-11"
+  # Look-back window (in days) for "recent form" feature.
+  form_window_days: 730            # ~24 months
+  # Minimum number of matches a team must have in the look-back to be scored.
+  min_matches: 5
+
+weights:
+  elo: 0.50
+  recent_form: 0.25
+  goal_performance: 0.15
+  squad_strength: 0.10
+
+elo:
+  initial_rating: 1500
+  home_advantage: 65               # rating points added to the home team
+  # K-factor (base) - scaled by match importance.
+  k_base: 30
+  # Match importance multipliers (applied to K).
+  # Values chosen to roughly mirror the World Football Elo Ratings system.
+  importance:
+    Friendly: 1.0
+    "FIFA Friendly": 1.0
+    "UEFA Nations League": 1.5
+    "African Cup of Nations qualification": 1.5
+    "AFC Asian Cup qualification": 1.5
+    "Copa América qualification": 1.5
+    "FIFA World Cup qualification": 2.0
+    "UEFA Euro qualification": 2.0
+    "African Cup of Nations": 2.5
+    "AFC Asian Cup": 2.5
+    "Copa América": 2.5
+    "UEFA Euro": 3.0
+    "Confederations Cup": 3.0
+    "FIFA World Cup": 4.0
+  default_importance: 1.0
+  # Goal-difference multiplier (Davidson / FIFA-style).
+  goal_diff_multiplier: true
+
+recent_form:
+  # Half-life for the exponential decay (in days).
+  half_life_days: 365
+  # Whether to scale a match's contribution by opponent Elo.
+  opponent_adjusted: true
+
+goal_performance:
+  # Cap absolute goal differential per match to dampen blow-outs.
+  goal_diff_cap: 5
+  # Weight goals scored vs. goals conceded in the index (must sum to 1).
+  attack_weight: 0.5
+  defense_weight: 0.5
+
+squad_strength:
+  # If no CSV is supplied, the component is skipped and weights are renormalized.
+  csv_path: null                   # optional path to data/raw/squad_strength.csv
+
+data:
+  results_csv: "data/raw/results.csv"
+  qualified_teams_csv: null        # optional override; if null all teams are ranked
+  # Aliases for common spelling differences across data sources.
+  team_aliases:
+    "United States": "USA"
+    "USA": "USA"
+    "Republic of Ireland": "Ireland"
+    "South Korea": "Korea Republic"
+    "Korea Republic": "Korea Republic"
+    "Korea, South": "Korea Republic"
+    "North Korea": "Korea DPR"
+    "Ivory Coast": "Côte d'Ivoire"
+    "Cote d'Ivoire": "Côte d'Ivoire"
+    "Cape Verde": "Cabo Verde"
+    "Czech Republic": "Czechia"
+
+output:
+  top_n: 24
+  directory: "outputs"
+  generate_chart: true
