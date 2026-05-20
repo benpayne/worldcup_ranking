@@ -87,6 +87,11 @@ data:
     "Cote d'Ivoire": "Côte d'Ivoire"
     "Cape Verde": "Cabo Verde"
     "Czech Republic": "Czechia"
+    "Türkiye": "Turkey"
+    "Turkiye": "Turkey"
+    "Democratic Republic of the Congo": "DR Congo"
+    "Congo DR": "DR Congo"
+    "Curacao": "Curaçao"
 
 output:
   top_n: 24
