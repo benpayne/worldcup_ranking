@@ -75,14 +75,20 @@ less outputs/model_report.md
 ```bash
 worldcup-ranker rank \
     --start-date 2026-06-11 \
-    --qualified-teams data/raw/qualified_teams.csv \
+    --qualified-teams config/wc2026_teams.csv \
     --results-csv data/raw/results.csv \
     --squad-csv data/raw/squad_strength.csv \
     --config config/default.yaml
 ```
 
-- `--qualified-teams` is a CSV with a single `team` column. When omitted,
-  every team that appears in the match data is ranked.
+- `--qualified-teams` is a CSV with a `team` column. The default config
+  points at `config/wc2026_teams.csv`, a bundled best-guess list of the
+  2026 World Cup field that excludes non-FIFA sides (Basque Country,
+  Catalonia, etc.) and currently-suspended teams (e.g. Russia, banned
+  from FIFA competitions since Feb 2022). Replace it with the confirmed
+  48-team list once FIFA publishes it, or set
+  `data.qualified_teams_csv: null` in your config to rank every team
+  that appears in the match data.
 - `--squad-csv` is a CSV with columns `team,score` (any numeric scale). When
   omitted the squad component is dropped and the remaining weights are
   renormalized.
@@ -150,6 +156,15 @@ goal_perf_raw = attack_weight  * mean(min(goals_for,  cap))
 The module is pluggable: when reliable national-team xG becomes
 available from a free source, swap in a new feature function in
 `features.py`.
+
+### Small-sample handling
+
+By default, teams with fewer than `tournament.min_matches` matches in
+the look-back window are **dropped** from the output. This prevents a
+single 4-0 friendly from floating a team to the top of the table by
+anchoring the min-max rescale (the bug that put Basque Country on the
+first published run). To keep them in the table with a `"<N matches"`
+note instead, set `tournament.drop_below_min_matches: false`.
 
 ### Squad strength (10%, optional)
 

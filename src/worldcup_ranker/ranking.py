@@ -130,18 +130,35 @@ def run_ranking(config: AppConfig) -> RankingResult:
     if squad_df is not None:
         df = df.merge(squad_df, on="team", how="left")
 
-    # 6. Flag teams with too few matches in the window (record a note).
+    # 6. Handle teams with too few matches in the window. By default we drop
+    # them entirely - otherwise a single friendly can place a non-FIFA side or
+    # a tiny association high in the table by anchoring the min-max rescale.
     notes: list[str] = []
     min_matches = config.tournament.min_matches
     low_sample_teams = set(
         df.loc[df["matches_used"].fillna(0) < min_matches, "team"].tolist()
     )
     if low_sample_teams:
-        notes.append(
-            f"{len(low_sample_teams)} team(s) have fewer than {min_matches} matches "
-            f"in the {config.tournament.form_window_days}-day window: "
-            f"{', '.join(sorted(low_sample_teams))}. They are still ranked but their "
-            "form/goal scores rely on a small sample."
+        if config.tournament.drop_below_min_matches:
+            df = df.loc[~df["team"].isin(low_sample_teams)].reset_index(drop=True)
+            notes.append(
+                f"Excluded {len(low_sample_teams)} team(s) with fewer than "
+                f"{min_matches} matches in the {config.tournament.form_window_days}-day "
+                f"window: {', '.join(sorted(low_sample_teams))}."
+            )
+        else:
+            notes.append(
+                f"{len(low_sample_teams)} team(s) have fewer than {min_matches} matches "
+                f"in the {config.tournament.form_window_days}-day window: "
+                f"{', '.join(sorted(low_sample_teams))}. They are still ranked but their "
+                "form/goal scores rely on a small sample."
+            )
+
+    if df.empty:
+        raise ValueError(
+            f"No teams meet the minimum-matches threshold ({min_matches}) for "
+            f"the {config.tournament.form_window_days}-day window. Lower "
+            "min_matches or widen form_window_days."
         )
 
     # 7. Rescale features to 0-100.
@@ -184,12 +201,11 @@ def run_ranking(config: AppConfig) -> RankingResult:
     df.insert(0, "rank", df.index + 1)
     df["data_sources"] = PRIMARY_SOURCE.name
     df["notes"] = ""
-    if low_sample_teams:
+    # Only annotate when low-sample teams survived (i.e. drop disabled).
+    if low_sample_teams and not config.tournament.drop_below_min_matches:
         df.loc[df["team"].isin(low_sample_teams), "notes"] = (
             f"<{min_matches} matches in window"
         )
-
-    df = df.rename(columns={"matches_used": "matches_used"})
 
     columns = [
         "rank",

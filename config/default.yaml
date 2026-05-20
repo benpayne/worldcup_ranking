@@ -8,6 +8,10 @@ tournament:
   form_window_days: 730            # ~24 months
   # Minimum number of matches a team must have in the look-back to be scored.
   min_matches: 5
+  # If true (default), teams with fewer than `min_matches` are excluded
+  # from the output entirely. Set false to keep them with a "<N matches"
+  # note in the `notes` column instead.
+  drop_below_min_matches: true
 
 weights:
   elo: 0.50
@@ -60,7 +64,12 @@ squad_strength:
 
 data:
   results_csv: "data/raw/results.csv"
-  qualified_teams_csv: null        # optional override; if null all teams are ranked
+  # Restrict ranking to the realistic 2026 World Cup field. This bundled
+  # list excludes non-FIFA sides (Basque Country, Catalonia, etc.) and
+  # teams currently suspended from FIFA competitions (e.g. Russia).
+  # Replace with the confirmed 48-team list once FIFA publishes it, or
+  # set to null to rank every team that appears in the match data.
+  qualified_teams_csv: "config/wc2026_teams.csv"
   # Aliases for common spelling differences across data sources.
   team_aliases:
     "United States": "USA"

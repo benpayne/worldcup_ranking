@@ -60,6 +60,9 @@ def test_run_ranking_end_to_end(tmp_path, tiny_matches):
     _write_csv(results, tiny_matches)
 
     config = _make_config(tmp_path, results)
+    # Chile only plays once in the fixture (below the default drop threshold);
+    # disable dropping here so the test exercises all four teams.
+    config.tournament.drop_below_min_matches = False
     result = run_ranking(config)
 
     # 4 teams in the fixture.
@@ -156,9 +159,9 @@ def test_write_outputs_creates_files(tmp_path, tiny_matches):
     assert "Caveats" in text
 
 
-def test_min_matches_note_when_team_has_too_few(tmp_path):
-    # Chile only has a single match, so with min_matches=3 it should trigger the warning.
-    rows = [
+def _low_sample_fixture() -> list[dict]:
+    """Chile plays only once; Brazil/Argentina have three each."""
+    return [
         {
             "date": pd.Timestamp("2025-06-05"),
             "home_team": "Brazil",
@@ -204,12 +207,29 @@ def test_min_matches_note_when_team_has_too_few(tmp_path):
             "neutral": True,
         },
     ]
-    df = pd.DataFrame(rows)
+
+
+def test_min_matches_drops_low_sample_teams_by_default(tmp_path):
+    """Default behavior: Chile (1 match) is excluded from the output."""
     results = tmp_path / "results.csv"
-    df.to_csv(results, index=False)
+    pd.DataFrame(_low_sample_fixture()).to_csv(results, index=False)
+
+    config = _make_config(tmp_path, results)
+    config.tournament.min_matches = 3  # drop_below_min_matches=True by default
+    result = run_ranking(config)
+
+    assert "Chile" not in set(result.rankings["team"])
+    assert any("Excluded" in n and "Chile" in n for n in result.notes)
+
+
+def test_min_matches_keeps_and_annotates_when_drop_disabled(tmp_path):
+    """Opt-in legacy behavior: keep low-sample teams and tag them."""
+    results = tmp_path / "results.csv"
+    pd.DataFrame(_low_sample_fixture()).to_csv(results, index=False)
 
     config = _make_config(tmp_path, results)
     config.tournament.min_matches = 3
+    config.tournament.drop_below_min_matches = False
     result = run_ranking(config)
 
     assert any("fewer than 3 matches" in n for n in result.notes)
