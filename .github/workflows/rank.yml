@@ -91,6 +91,9 @@ jobs:
           fi
           worldcup-ranker rank $ARGS
 
+      - name: Run tournament simulation
+        run: worldcup-ranker simulate --iterations 10000 --seed 42
+
       - name: Build static site
         run: python scripts/build_site.py
 

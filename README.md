@@ -100,6 +100,42 @@ worldcup-ranker rank \
 worldcup-ranker report
 ```
 
+### Simulate the tournament
+
+After `rank`, `simulate` walks the actual 2026 group draw through the
+bracket and to a final, producing both a single deterministic path and
+a Monte Carlo distribution.
+
+```bash
+worldcup-ranker simulate --iterations 10000 --seed 42
+```
+
+Outputs (in `outputs/`):
+
+- `deterministic_bracket.md` — one walk-through using the most-likely
+  score for each match. Easy to read; the "if everything went as
+  expected, here's the bracket" view.
+- `monte_carlo_probabilities.csv` — per-team P(reach R32 / R16 / QF /
+  SF / Final / Champion). The predictive view.
+- `monte_carlo_medals.csv` — P(gold), P(silver), P(bronze), P(finalist).
+- `simulation_report.md` — top-10 by P(Champion) + caveats.
+
+**Score model.** Independent Poisson on goals, with each team's expected
+rate computed from a function of `final_score` from the ranker.
+Hand-tuned defaults (mean total 2.5 goals, gap coefficient 2.0). Knockout
+extra time uses the same rates scaled by 30/90. Penalty shootouts are
+~50/50 with a small skill nudge (PKs are weakly predictable in elite
+men's football).
+
+**Bracket caveat.** FIFA's Annex C of the 2026 regulations contains a
+495-row lookup that maps each possible set of 8-of-12 third-place
+qualifiers to specific R32 slots. We approximate this by ranking all 32
+advancers (finishing position → points → GD → GF), pairing them via the
+standard 32-team seeding order, and swapping pairs as needed to avoid
+same-group rematches. The top two seeds can only meet in the final;
+same-group teams can't meet before SF. This gives a coherent bracket
+that's consistent across MC iterations.
+
 ## Data sources
 
 | Component       | Source                                                 | Licence |
