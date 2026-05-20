@@ -187,7 +187,10 @@ Hook both into the ranking:
 
 ```bash
 git clone --depth 1 https://github.com/statsbomb/open-data ~/sbod
-worldcup-ranker statsbomb build --open-data-path ~/sbod
+# 1500-day lookback covers WC 2022 + Euro 2020/24 + Copa 2024. The
+# narrower default form-window-days (730d) would miss WC 2022 and leave
+# most non-UEFA / non-CONMEBOL teams with zero squad score.
+worldcup-ranker statsbomb build --open-data-path ~/sbod --lookback-days 1500
 worldcup-ranker rank \
     --xg-csv   data/processed/statsbomb_xg.csv \
     --squad-csv data/processed/statsbomb_squad.csv

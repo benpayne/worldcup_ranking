@@ -71,7 +71,10 @@ jobs:
         env:
           START_DATE: ${{ github.event.inputs.start_date }}
         run: |
-          ARGS="--open-data-path /tmp/statsbomb-open-data"
+          # Wider window than form_window_days so the squad builder picks up
+          # WC 2022 (otherwise only Euro 2024 + Copa 2024 are in range and
+          # most AFC / CAF squads contribute 0).
+          ARGS="--open-data-path /tmp/statsbomb-open-data --lookback-days 1500"
           if [ -n "$START_DATE" ]; then
             ARGS="$ARGS --start-date $START_DATE"
           fi
